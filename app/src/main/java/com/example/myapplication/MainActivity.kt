@@ -3,12 +3,9 @@ package com.example.myapplication
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -39,23 +36,13 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun fakeApiRequest() {
         logThread("fakeApiRequest")
-
-        val result1 = getResult1FromApi() // wait until job is done
-
-        if (result1.equals("Result #1")) {
-
-            setTextOnMainThread("Got $result1")
-
-            val result2 = getResult2FromApi() // wait until job is done
-
-            if (result2.equals("Result #2")) {
-                setTextOnMainThread("Got $result2")
-            } else {
-                setTextOnMainThread("Couldn't get Result #2")
-            }
-        } else {
-            setTextOnMainThread("Couldn't get Result #1")
+        withContext(IO) {
+            withTimeoutOrNull(2050){
+                setTextOnMainThread("Got ${getResult1FromApi()}")
+                setTextOnMainThread("Got ${getResult2FromApi()}")
+            } ?: setTextOnMainThread("Job time out MF")
         }
+
     }
 
 
