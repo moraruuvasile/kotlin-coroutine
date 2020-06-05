@@ -2,64 +2,101 @@ package com.example.myapplication
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
+import android.widget.ProgressBar
+import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
+
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 
 class MainActivity : AppCompatActivity() {
 
+    private val TAG: String = "AppDebugg"
+
+    private val PROGRESS_MAX = 100
+    private val PROGRESS_START = 0
+    private val JOB_TIME = 4000 // ms
+    private lateinit var job: CompletableJob
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        btn.setOnClickListener {
-            this.setNewText("Click!")
 
-            CoroutineScope(IO).launch {
-                fakeApiRequest()
+        job_button.setOnClickListener {
+            if (!::job.isInitialized) {
+                Log.d(TAG, "onCreate: first if")
+                initjob()
             }
-            this.setNewText("Finish!")
-        }
-
-    }
-
-    private fun setNewText(input: String) {
-        val newText = tv.text.toString() + "\n$input"
-        tv.text = newText
-    }
-
-    private suspend fun setTextOnMainThread(input: String) {
-        withContext(Main) {
-            setNewText(input)
+            Log.d(TAG, "onCreate: not if")
+            job_progress_bar.startJobOrCancel(job)
         }
     }
 
-    private suspend fun fakeApiRequest() {
-        logThread("fakeApiRequest")
-        withContext(IO) {
-            withTimeoutOrNull(2050){
-                setTextOnMainThread("Got ${getResult1FromApi()}")
-                setTextOnMainThread("Got ${getResult2FromApi()}")
-            } ?: setTextOnMainThread("Job time out MF")
+    fun resetjob() {
+        if (job.isActive || job.isCompleted) {
+            job.cancel(CancellationException("Resetting job"))
         }
+        initjob()
+    }
 
+    fun initjob() {
+        job_button.setText("Start Job #1")
+        updateJobCompleteTextView("")
+        job = Job()
+        job.invokeOnCompletion {
+            it?.message.let {
+                var msg = it
+                if (msg.isNullOrBlank()) {
+                    msg = "Unknown cancellation error."
+                }
+                Log.e(TAG, "${job} was cancelled. Reason: ${msg}")
+                showToast(msg)
+            }
+        }
+        job_progress_bar.max = PROGRESS_MAX
+        job_progress_bar.progress = PROGRESS_START
+        Log.d(TAG, "initjob: " + " job is created + ${job}")
     }
 
 
-    private suspend fun getResult1FromApi(): String {
-        logThread("getResult1FromApi")
-        delay(1000) // Does not block thread. Just suspends the coroutine inside the thread
-        return "Result #1"
+    fun ProgressBar.startJobOrCancel(job: Job) {
+        if (this.progress > 0) {
+            Log.d(TAG, "${job} is already active. Cancelling..." + "Auriki ${this.progress}")
+            resetjob()
+        } else {
+            job_button.setText("Cancel Job #1")
+            CoroutineScope(IO + job).launch {
+                Log.d(TAG, "coroutine ${this} is activated with job ${job}.")
+
+                for (i in PROGRESS_START..PROGRESS_MAX) {
+                    delay((JOB_TIME / PROGRESS_MAX).toLong())
+                    this@startJobOrCancel.progress = i
+                }
+                updateJobCompleteTextView("Job is complete!")
+            }
+        }
     }
 
-    private suspend fun getResult2FromApi(): String {
-        logThread("getResult2FromApi")
-        delay(1000)
-        return "Result #2"
+    private fun updateJobCompleteTextView(text: String) {
+        GlobalScope.launch(Main) {
+            job_complete_text.setText(text)
+        }
     }
 
-    private fun logThread(methodName: String) {
-        println("debug: ${methodName}: ${Thread.currentThread().name}")
+    private fun showToast(text: String) {
+        GlobalScope.launch(Main) {
+            Toast.makeText(this@MainActivity, text, Toast.LENGTH_SHORT).show()
+        }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::job.isInitialized) {
+            job.cancel()
+        }
+    }
 }
+
