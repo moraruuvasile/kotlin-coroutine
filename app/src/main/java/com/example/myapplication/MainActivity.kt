@@ -10,93 +10,95 @@ import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
+import kotlin.system.measureTimeMillis
 
 class MainActivity : AppCompatActivity() {
-
-    private val TAG: String = "AppDebugg"
-
-    private val PROGRESS_MAX = 100
-    private val PROGRESS_START = 0
-    private val JOB_TIME = 4000 // ms
-    private lateinit var job: CompletableJob
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        job_button.setOnClickListener {
-            if (!::job.isInitialized) {
-                Log.d(TAG, "onCreate: first if")
-                initjob()
+        button.setOnClickListener {
+            setNewText("Click!")
+
+            CoroutineScope(IO).launch {
+                fakeApiRequest()
+                fakeApiRequestI()
             }
-            Log.d(TAG, "onCreate: not if")
-            job_progress_bar.startJobOrCancel(job)
+        }
+
+    }
+
+
+    private fun setNewText(input: String) {
+        val newText = text.text.toString() + "\n$input"
+        text.text = newText
+    }
+
+    private suspend fun setTextOnMainThread(input: String) {
+        withContext(Main) {
+            setNewText(input)
         }
     }
 
-    fun resetjob() {
-        if (job.isActive || job.isCompleted) {
-            job.cancel(CancellationException("Resetting job"))
-        }
-        initjob()
-    }
+    private suspend fun fakeApiRequest() {
+        withContext(IO) {
 
-    fun initjob() {
-        job_button.setText("Start Job #1")
-        updateJobCompleteTextView("")
-        job = Job()
-        job.invokeOnCompletion {
-            it?.message.let {
-                var msg = it
-                if (msg.isNullOrBlank()) {
-                    msg = "Unknown cancellation error."
+            val job1 = launch {
+                val time1 = measureTimeMillis {
+                    println("debug: launching job1 in thread: ${Thread.currentThread().name}")
+                    val result1 = getResult1FromApi()
+                    setTextOnMainThread("Got $result1")
                 }
-                Log.e(TAG, "${job} was cancelled. Reason: ${msg}")
-                showToast(msg)
+                println("debug: compeleted job1 in $time1 ms.")
             }
-        }
-        job_progress_bar.max = PROGRESS_MAX
-        job_progress_bar.progress = PROGRESS_START
-        Log.d(TAG, "initjob: " + " job is created + ${job}")
-    }
 
-
-    fun ProgressBar.startJobOrCancel(job: Job) {
-        if (this.progress > 0) {
-            Log.d(TAG, "${job} is already active. Cancelling..." + "Auriki ${this.progress}")
-            resetjob()
-        } else {
-            job_button.setText("Cancel Job #1")
-            CoroutineScope(IO + job).launch {
-                Log.d(TAG, "coroutine ${this} is activated with job ${job}.")
-
-                for (i in PROGRESS_START..PROGRESS_MAX) {
-                    delay((JOB_TIME / PROGRESS_MAX).toLong())
-                    this@startJobOrCancel.progress = i
+            val job2 = launch {
+                val time2 = measureTimeMillis {
+                    println("debug: launching job2 in thread: ${Thread.currentThread().name}")
+                    val result2 = getResult2FromApi()
+                    setTextOnMainThread("Got $result2")
                 }
-                updateJobCompleteTextView("Job is complete!")
+                println("debug: compeleted job2 in $time2 ms.")
             }
+
         }
     }
 
-    private fun updateJobCompleteTextView(text: String) {
-        GlobalScope.launch(Main) {
-            job_complete_text.setText(text)
+
+    private fun fakeApiRequestI() {
+        CoroutineScope(IO).launch {
+            val execitonTime = measureTimeMillis {
+                val result1: Deferred<String> = async {
+                    println("debug: launching async job1 in thread: ${Thread.currentThread().name}")
+                    getResult1FromApi()
+                }
+
+                val result2: Deferred<String> = async {
+                    println("debug: launching async job2 in thread: ${Thread.currentThread().name}")
+                    getResult2FromApi()
+                }
+
+                setTextOnMainThread("Got ${result1.await()}")
+                setTextOnMainThread("Got ${result2.await()}")
+            }
+            println("debug: compeleted job2 in $execitonTime ms.")
+
         }
+
     }
 
-    private fun showToast(text: String) {
-        GlobalScope.launch(Main) {
-            Toast.makeText(this@MainActivity, text, Toast.LENGTH_SHORT).show()
-        }
+
+    private suspend fun getResult1FromApi(): String {
+        delay(1000)
+        return "Result #1"
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (::job.isInitialized) {
-            job.cancel()
-        }
+    private suspend fun getResult2FromApi(): String {
+        delay(2500)
+        return "Result #2"
     }
+
 }
 
