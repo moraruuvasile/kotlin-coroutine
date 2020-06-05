@@ -8,6 +8,7 @@ import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlin.system.measureTimeMillis
@@ -23,7 +24,6 @@ class MainActivity : AppCompatActivity() {
             setNewText("Click!")
 
             CoroutineScope(IO).launch {
-                fakeApiRequest()
                 fakeApiRequestI()
             }
         }
@@ -42,46 +42,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun fakeApiRequest() {
-        withContext(IO) {
-
-            val job1 = launch {
-                val time1 = measureTimeMillis {
-                    println("debug: launching job1 in thread: ${Thread.currentThread().name}")
-                    val result1 = getResult1FromApi()
-                    setTextOnMainThread("Got $result1")
-                }
-                println("debug: compeleted job1 in $time1 ms.")
-            }
-
-            val job2 = launch {
-                val time2 = measureTimeMillis {
-                    println("debug: launching job2 in thread: ${Thread.currentThread().name}")
-                    val result2 = getResult2FromApi()
-                    setTextOnMainThread("Got $result2")
-                }
-                println("debug: compeleted job2 in $time2 ms.")
-            }
-
-        }
-    }
-
-
     private fun fakeApiRequestI() {
         CoroutineScope(IO).launch {
             val execitonTime = measureTimeMillis {
-                val result1: Deferred<String> = async {
+                val result1 = async {
                     println("debug: launching async job1 in thread: ${Thread.currentThread().name}")
                     getResult1FromApi()
-                }
+                }.await()
 
-                val result2: Deferred<String> = async {
+                val result2 = async {
                     println("debug: launching async job2 in thread: ${Thread.currentThread().name}")
-                    getResult2FromApi()
-                }
 
-                setTextOnMainThread("Got ${result1.await()}")
-                setTextOnMainThread("Got ${result2.await()}")
+                    try{
+                        getResult2FromApi(result1+"a")
+                    } catch (e: CancellationException){
+                        e.message
+                    }
+                }.await()
+
+                println("debug: got result2: $result2 ")
             }
             println("debug: compeleted job2 in $execitonTime ms.")
 
@@ -95,9 +74,11 @@ class MainActivity : AppCompatActivity() {
         return "Result #1"
     }
 
-    private suspend fun getResult2FromApi(): String {
+    private suspend fun getResult2FromApi(result: String): String {
         delay(2500)
-        return "Result #2"
+        if(result.equals("Result #1"))
+            return "Result #2"
+        throw CancellationException("Result 1 was incorect Baiiii")
     }
 
 }
