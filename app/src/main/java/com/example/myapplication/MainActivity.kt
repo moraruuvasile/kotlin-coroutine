@@ -10,98 +10,87 @@ import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.NonCancellable.cancel
+
 
 class MainActivity : AppCompatActivity() {
 
-    private val TAG: String = "AppDebugg"
-
-    private val PROGRESS_MAX = 100
-    private val PROGRESS_START = 0
-    private val JOB_TIME = 4000 // ms
-    private lateinit var job: CompletableJob
-
+    private val TAG: String = "AppDebug"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        job_button.setOnClickListener {
-            if (!::job.isInitialized) {
-                Log.d(TAG, "onCreate: first if")
-                initjob()
+        main()
+    }
+
+    val handler = CoroutineExceptionHandler { _, exception ->
+        println("Exception thrown in one of the children: $exception")
+    }
+
+    fun main() {
+        val parentJob = CoroutineScope(IO).launch(handler) {
+
+            // --------- JOB A ---------
+            val jobA = launch {
+                val resultA = getResult(1)
+                println("resultA: ${resultA}")
             }
-            Log.d(TAG, "onCreate: not if")
-            job_progress_bar.startJobOrCancel(job)
-        }
-    }
-
-    fun resetjob() {
-        if (job.isActive || job.isCompleted) {
-            job.cancel(CancellationException("Resetting job"))
-        }
-        initjob()
-    }
-
-    fun initjob() {
-        job_button.setText("Start Job #1")
-        updateJobCompleteTextView("")
-        job = Job()
-        job.invokeOnCompletion {
-            it?.message.let {
-                var msg = it
-                if (msg.isNullOrBlank()) {
-                    msg = "Unknown cancellation error."
+            jobA.invokeOnCompletion { throwable ->
+                if (throwable != null) {
+                    println("Error getting resultA: ${throwable}")
                 }
-                Log.e(TAG, "${job} was cancelled. Reason: ${msg}")
-                showToast(msg)
             }
-            if (it != null) {
-                println("Auriki")
+
+            // --------- JOB B ---------
+            val jobB = launch {
+                val resultB = getResult(2)
+                println("resultB: ${resultB}")
+            }
+            jobB.invokeOnCompletion { throwable ->
+                if (throwable != null) {
+                    println("Error getting resultB: ${throwable}")
+                }
+            }
+
+            // --------- JOB C ---------
+            val jobC = launch {
+                val resultC = getResult(3)
+                println("resultC: ${resultC}")
+            }
+            jobC.invokeOnCompletion { throwable ->
+                if (throwable != null) {
+                    println("Error getting resultC: ${throwable}")
+                }
+            }
+        }
+        parentJob.invokeOnCompletion { throwable ->
+            if (throwable != null) {
+                println("Parent job failed: ${throwable}")
             } else {
-                println("Buriki")
-            }
-        }
-        job_progress_bar.max = PROGRESS_MAX
-        job_progress_bar.progress = PROGRESS_START
-        Log.d(TAG, "initjob: " + " job is created + ${job}")
-    }
-
-
-    fun ProgressBar.startJobOrCancel(job: Job) {
-        if (this.progress > 0) {
-            Log.d(TAG, "${job} is already active. Cancelling..." + "Auriki ${this.progress}")
-            resetjob()
-        } else {
-            job_button.setText("Cancel Job #1")
-            CoroutineScope(IO + job).launch {
-                Log.d(TAG, "coroutine ${this} is activated with job ${job}.")
-
-                for (i in PROGRESS_START..PROGRESS_MAX) {
-                    delay((JOB_TIME / PROGRESS_MAX).toLong())
-                    this@startJobOrCancel.progress = i
-                }
-                updateJobCompleteTextView("Job is complete!")
+                println("Parent job SUCCESS")
             }
         }
     }
 
-    private fun updateJobCompleteTextView(text: String) {
-        GlobalScope.launch(Main) {
-            job_complete_text.setText(text)
+    suspend fun getResult(number: Int): Int {
+        return withContext(Main) {
+            delay(number * 500L)
+            if (number == 2) {
+//               cancel(CancellationException("Error getting result for number: ${number}"))                                //2 case
+//                throw CancellationException("Error getting result for number: ${number}") // treated like "joB.cancel()"
+//               throw Exception("Error getting result for number: ${number}")                                             //1 case
+            }
+            number * 2
         }
+
     }
 
-    private fun showToast(text: String) {
-        GlobalScope.launch(Main) {
-            Toast.makeText(this@MainActivity, text, Toast.LENGTH_SHORT).show()
-        }
+
+    private fun println(message: String) {
+        Log.d(TAG, message)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (::job.isInitialized) {
-            job.cancel()
-        }
-    }
+
 }
 
