@@ -12,27 +12,26 @@ object Repository {
 
     var job: CompletableJob? = null
 
-    fun getUser(userId: String): MutableLiveData<User>{
+    fun getUser(userId: String): MutableLiveData<User> {
         job = Job()
-        return object: MutableLiveData<User>(){
+        return object : MutableLiveData<User>() {
             override fun onActive() {
                 super.onActive()
-                job?.let{ theJob ->
+                job?.let { theJob ->
                     CoroutineScope(IO + theJob).launch {
                         val user = RetrofitBuilder.apiService.getUser(userId)
-                        withContext(Main){
-                            value = user
-                            theJob.complete()
-                        }
+                        //                     withContext(Main){
+                        postValue(user)
+                        //                           value = user
+                        theJob.complete()
+                        //                       }
                     }
-
                 }
-
             }
         }
     }
 
-    fun cancelJobs(){
+    fun cancelJobs() {
         job?.cancel()
     }
 
