@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
             delay(number * 500L)
             if (number == 2) {
  //              cancel(CancellationException("Error getting result for number: ${number}"))                                //2 case
-//                throw CancellationException("Error getting result for number: ${number}") // treated like "joB.cancel()"
+//                throw CancellationException("Error getting result for number: ${number}") // treated like "joB.cancel()" --- e buna :)
                throw Exception("Error getting result for number: ${number}")                                             //1 case
             }
             number * 2
