@@ -20,9 +20,6 @@ class MainViewModel2: ViewModel() {
         }
 
 
-
-
-
     fun getUserById():LiveData<User>{
        return Transformations.switchMap(_userId){ Repository.getUser(it)}
     }

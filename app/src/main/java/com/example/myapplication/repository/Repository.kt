@@ -12,6 +12,7 @@ object Repository {
 
     var job: CompletableJob? = null
 
+
     fun getUser(userId: String): MutableLiveData<User> {
         job = Job()
         return object : MutableLiveData<User>() {

@@ -15,7 +15,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun cancelJobs() {
-        Repository.cancelJobs()
+        Repository?.cancelJobs()
     }
 }
 
